@@ -1,9 +1,12 @@
+import os
 import uuid
-import threading
 import asyncio
+from dotenv import load_dotenv
 
-CLEAN_JOB_INTERVAL = 5
-SCRAP_INTERVAL = 0.1
+load_dotenv()
+
+CLEAN_JOB_INTERVAL = int(os.getenv("CLEAN_JOB_INTERVAL"))
+SCRAP_INTERVAL = float(os.getenv("SCRAP_INTERVAL"))
 
 class JobState():
     def __init__(self, start: int, end: int) -> None:
@@ -45,7 +48,6 @@ class JobService():
 
     def is_job_active(self, id: str) -> bool:
         for job in self.jobs:
-            print(f'{id.strip()} = {job.id.strip()}: {id.strip()==job.id.strip()}')
             if job.id.strip() == id.strip():
                 return True
         return False
@@ -62,8 +64,6 @@ class JobService():
     
     async def __clean_up_joblist(self) -> None:
         while self.run_cleanup:
-            for job in self.jobs:
-                print(job)
             new_joblist: list[JobState] = []
             for job in self.jobs:
                 if not job.is_running:
