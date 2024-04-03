@@ -1,0 +1,6 @@
+.git
+.DS*
+__pycache__
+venv
+*.zip
+data

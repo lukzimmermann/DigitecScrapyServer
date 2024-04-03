@@ -1,0 +1,6 @@
+docker-*
+opnsense.py
+.env
+apicalls
+.vscode
+kubernetes
