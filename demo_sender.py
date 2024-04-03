@@ -8,7 +8,7 @@ id = response.json()['id']
 print(id)
 
 
-time.sleep(3)
+time.sleep(1)
 
 print("----- Send batch ----")
 url = "http://localhost:8000/jobs/upload_batch/"
