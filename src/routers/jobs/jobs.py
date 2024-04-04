@@ -14,6 +14,8 @@ load_dotenv()
 DATA_PATH = os.getenv("BASELINE_PATH")
 CONFIG_PATH = os.getenv("CONFIG_PATH")
 
+print(f'{CONFIG_PATH}/logs')
+
 logging.basicConfig(filename=f'{CONFIG_PATH}/logs', level=logging.INFO, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
