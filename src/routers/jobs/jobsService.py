@@ -1,4 +1,5 @@
 import os
+import time
 import uuid
 import asyncio
 from dotenv import load_dotenv
@@ -12,6 +13,7 @@ CONFIG_PATH = str(os.getenv("CONFIG_PATH"))
 class JobState():
     def __init__(self, start: int, end: int) -> None:
         self.id: str = str(uuid.uuid4())
+        self.created: float = time.time()
         self.start: int = start
         self.end: int = end
         self.interval = SCRAP_INTERVAL

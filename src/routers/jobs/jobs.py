@@ -2,7 +2,7 @@ import zipfile
 import io
 import os
 import logging
-import sys
+import datetime
 from fastapi import APIRouter, Query, File, UploadFile, Form, HTTPException, Request
 from typing import Annotated
 from pydantic import BaseModel
@@ -32,6 +32,7 @@ class Batch(BaseModel):
     id: str
     start: int
     end: int
+    created: str
     interval: float
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
@@ -41,12 +42,24 @@ job_service = JobService()
 @router.get("/get_batch/")
 async def get_batch(request: Request, token: Token) -> Batch:
     if token.token in job_service.users:
+        print(token.token)
         user = job_service.users[token.token]
         new_job = job_service.get_new_job(user=user)
+        formatted_time = datetime.datetime.fromtimestamp(new_job.created).strftime('%Y-%m-%d %H:%M:%S')
         logging.info(f'{user}@{request.client.host} get a new batch from {new_job.start} to {new_job.end}')
-        return Batch(id = new_job.id, start=new_job.start, end=new_job.end, interval=new_job.interval)
+        return Batch(id = new_job.id, start=new_job.start, end=new_job.end, interval=new_job.interval, created=formatted_time)
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
+    
+
+@router.get("/status/")
+async def get_batch() -> list[Batch]:
+    status: list[Batch] = []
+    for job in job_service.jobs:
+        if job.is_running:
+            formatted_time = datetime.datetime.fromtimestamp(job.created).strftime('%Y-%m-%d %H:%M:%S')
+            status.append(Batch(id = '-', start=job.start, end=job.end, interval=job.interval, created=formatted_time))
+    return status
     
 
 @router.post("/upload_batch/")
