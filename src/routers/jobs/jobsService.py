@@ -89,13 +89,13 @@ class JobService():
             if not job.is_running:
                 string_list.append(f'{job.start} - {job.end}\n')
 
-        with open("job_state", 'w') as file:
+        with open(f"{CONFIG_PATH}/job_state", 'w') as file:
             file.writelines(string_list)
             
     def __read_state_file(self) -> list[JobState]:
         jobs: list[JobState] = []
 
-        with open("job_state", "r") as file:
+        with open(f"{CONFIG_PATH}/job_state", "r") as file:
             data = file.readlines()
             for line in data:
                 values = line.split('-')

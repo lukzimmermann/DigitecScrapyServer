@@ -12,9 +12,10 @@ from src.routers.jobs.jobsService import JobService
 load_dotenv()
 
 DATA_PATH = os.getenv("BASELINE_PATH")
+CONFIG_PATH = os.getenv("CONFIG_PATH")
 
-log_format = "%(asctime)s - %(client_ip)s - %(levelname)s: %(message)s"
-logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format)
+logging.basicConfig(filename=f'{CONFIG_PATH}/logs', level=logging.INFO, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 class Job(BaseModel):
     id: str
@@ -40,7 +41,7 @@ async def get_batch(request: Request, token: Token) -> Batch:
     if token.token in job_service.users:
         user = job_service.users[token.token]
         new_job = job_service.get_new_job(user=user)
-        print(f'{user}@{request.client.host} get a new batch from {new_job.start} to {new_job.end}')
+        logging.info(f'{user}@{request.client.host} get a new batch from {new_job.start} to {new_job.end}')
         return Batch(id = new_job.id, start=new_job.start, end=new_job.end, interval=new_job.interval)
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
@@ -63,7 +64,7 @@ async def upload_batch(request: Request, id: Annotated[str, Form()], file: Uploa
             zip_ref.extractall(DATA_PATH)
 
         job_service.finish_job(id)
-        print(f'{job.user}@{request.client.host} send {number_files} datasets from {job.start} to {job.end} ({(number_files/(job.end-job.start)*100):.2f}%)')
+        logging.info(f'{job.user}@{request.client.host} send {number_files} datasets from {job.start} to {job.end} ({(number_files/(job.end-job.start)*100):.2f}%)')
         return {"message": "Files uploaded and extracted successfully"}
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
