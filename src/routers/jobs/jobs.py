@@ -44,7 +44,6 @@ job_service = JobService()
 
 @router.post("/get_batch/")
 async def get_batch(batch_request_data: BatchRequestData) -> Batch:
-    print(batch_request_data)
     if job_service.get_user_by_token(batch_request_data.token) is not None:
         if job_service.is_ip_address_present(batch_request_data.ip):
             raise HTTPException(status_code=403, detail="IP address is still registered for another job, please wait...")
@@ -86,7 +85,7 @@ async def upload_batch(request: Request, id: Annotated[str, Form()], file: Uploa
             zip_ref.extractall(DATA_PATH)
 
         job_service.finish_job(id)
-        logging.info(f'{job.user}@{request.client.host} send {number_files} datasets from {job.start} to {job.end} ({((number_files-1)/(job.end-job.start)*100):.2f}%)')
+        logging.info(f'{job.user.name}@{job.user.ip} send {number_files} datasets from {job.start} to {job.end} ({((number_files-1)/(job.end-job.start)*100):.2f}%)')
         return {"message": "Files uploaded and extracted successfully"}
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
