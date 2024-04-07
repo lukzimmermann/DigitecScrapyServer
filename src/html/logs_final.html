@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {
+        --bg-color: #ffffff; /* default background color */
+        --text-color: #000000; /* default text color */
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          --bg-color: #1f1f1f; /* dark mode background color */
+          --text-color: #ffffff; /* dark mode text color */
+        }
+      }
+
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+      }
+
+      h1 {
+        margin: 10;
+        color: inherit;
+      }
+
+      p {
+        margin: 10;
+        color: inherit;
+      }
+      .container {
+        margin: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>DigitecScrapy Logs</h1>
+      <p>2024-04-08 00:12:52,531 - INFO - pack-baseline service: nothing to pack after 0.0s
+</p><p>2024-04-08 00:12:52,531 - INFO - ---- Start pack-baseline service ----
+</p><p>2024-04-08 00:11:52,395 - INFO - pack-baseline service: nothing to pack after 0.0s
+</p><p>2024-04-08 00:11:52,395 - INFO - ---- Start pack-baseline service ----
+</p><p>2024-04-08 00:11:48,540 - INFO - pack-baseline service: nothing to pack after 0.0s
+</p>
+    </div>
+  </body>
+</html>

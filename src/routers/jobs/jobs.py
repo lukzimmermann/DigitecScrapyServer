@@ -5,6 +5,7 @@ import logging
 import time
 import datetime
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from typing import Annotated
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -91,6 +92,41 @@ async def upload_batch(request: Request, id: Annotated[str, Form()], file: Uploa
         return {"message": "Files uploaded and extracted successfully"}
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
+
+@router.get("/logs/")
+async def get_logs():
+    LOG_LENGTH = 100
+
+    def get_logs() -> list[str]:
+        logs: list[str] = []
+
+        with open(CONFIG_PATH+"/logs", "r") as file:
+            data = file.readlines()
+            if len(data) > LOG_LENGTH:
+                data = data[-LOG_LENGTH:]
+
+        for element in data:
+            if "@" in element:
+                segments = element.split('@')
+                log = segments[0] + " " + " ".join(segments[1].split(' ')[1:])
+                logs.append(log)
+            else:
+                logs.append(element)
+        return logs[::-1]
+
+    def create_log_html():
+        with open('./src/html/logs.html', 'r') as file:
+            html = file.read()
+
+        logs = get_logs()
+
+        log_text = ''
+        for log in logs:
+            log_text += f'<p>{log}</p>'
+
+        html = html.replace('XXX', log_text)
+        return html
+    return HTMLResponse(content=create_log_html(), status_code=200, media_type="text/html")
 
 
 @router.on_event("shutdown")
