@@ -4,6 +4,7 @@ import uuid
 import logging
 import asyncio
 import zipfile
+import threading
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -50,7 +51,7 @@ class JobService():
         self.run_cleanup = True
         self.users: list[JobUser] = self.__read_users()
         asyncio.create_task(self.__clean_up_joblist())
-        asyncio.create_task(self.pack_baseline(BASELINE_PATH, BASELINE_ZIP_PATH, ZIP_SIZE))
+        asyncio.create_task(self.start_pack_baseline())
 
     def get_job_by_id(self, id: str) -> JobState:
         for job in self.jobs:
@@ -126,40 +127,43 @@ class JobService():
         with open(f"{CONFIG_PATH}/job_state", 'w') as file:
             file.writelines(string_list)
 
-
-    async def pack_baseline(self, baseline_path: str, baseline_zip_path: str, zip_size: int = 100000):
-        logging.info("---- Start pack-baseline service ----")
+    async def start_pack_baseline(self):
         while self.run_cleanup:
-            if len(os.listdir(baseline_path)) > zip_size:
-                zip_files = []
-                files = []
-                file_list = os.listdir(baseline_path)
-                file_list =  sorted(file_list, key=lambda x: int(x.split('_')[0]))
-
-                for i, file in enumerate(file_list):
-                    full_path = os.path.join(baseline_path, file)
-                    if i != 0:
-                        files.append([file, full_path])
-                        if i%zip_size == 0:
-                            zip_files.append(files)
-                            files = []
-
-                for zip_file in zip_files:
-                    start = zip_file[0][0].split('_')[0]
-                    end = zip_file[-1][0].split('_')[0]
-                    zip_filename = f"{start}_{end}.zip"
-
-                    if not os.path.exists(baseline_zip_path):
-                        os.mkdir(baseline_zip_path)
-
-                    logging.info(f"pack-baseline service: start creating {zip_filename}")
-                    with zipfile.ZipFile(os.path.join(baseline_zip_path, zip_filename), 'w') as zipf:
-                        for file in zip_file:
-                            zipf.write(file[1], os.path.basename(file[1]))
-                            os.remove(file[1])
-                    logging.info(f"pack-baseline service: end creating {zip_filename}")
-                logging.info(f"pack-baseline service: successful")
+            thread = threading.Thread(target=self.pack_baseline, args=(BASELINE_PATH, BASELINE_ZIP_PATH, ZIP_SIZE))
+            thread.start()
             await asyncio.sleep(ZIP_JOB_INTERVAL)
+
+    def pack_baseline(self, baseline_path: str, baseline_zip_path: str, zip_size: int = 100000):
+        logging.info("---- Start pack-baseline service ----")
+        start_time = time.time()
+        if len(os.listdir(baseline_path)) > zip_size:
+            zip_files = []
+            files = []
+            file_list = os.listdir(baseline_path)
+            file_list =  sorted(file_list, key=lambda x: int(x.split('_')[0]))
+            for i, file in enumerate(file_list):
+                full_path = os.path.join(baseline_path, file)
+                if i != 0:
+                    files.append([file, full_path])
+                    if i%zip_size == 0:
+                        zip_files.append(files)
+                        files = []
+            for zip_file in zip_files:
+                start = zip_file[0][0].split('_')[0]
+                end = zip_file[-1][0].split('_')[0]
+                zip_filename = f"{start}_{end}.zip"
+                if not os.path.exists(baseline_zip_path):
+                    os.mkdir(baseline_zip_path)
+                logging.info(f"pack-baseline service: start creating {zip_filename}")
+                with zipfile.ZipFile(os.path.join(baseline_zip_path, zip_filename), 'w') as zipf:
+                    for file in zip_file:
+                        zipf.write(file[1], os.path.basename(file[1]))
+                        os.remove(file[1])
+                logging.info(f"pack-baseline service: end creating {zip_filename}")
+            logging.info(f"pack-baseline service: successful after {(time.time()-start_time):.1f}s")
+        else:
+            logging.info(f"pack-baseline service: nothing to pack after {(time.time()-start_time):.1f}s")
+        
             
     def __read_state_file(self) -> list[JobState]:
         jobs: list[JobState] = []
