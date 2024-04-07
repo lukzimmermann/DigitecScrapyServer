@@ -2,6 +2,7 @@ import zipfile
 import io
 import os
 import logging
+import time
 import datetime
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Request
 from typing import Annotated
@@ -13,6 +14,7 @@ load_dotenv()
 
 DATA_PATH = os.getenv("BASELINE_PATH")
 CONFIG_PATH = os.getenv("CONFIG_PATH")
+BATCH_SIZE = int(os.getenv("BATCH_SIZE"))
 
 logging.basicConfig(filename=f'{CONFIG_PATH}/logs', level=logging.INFO, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -85,7 +87,7 @@ async def upload_batch(request: Request, id: Annotated[str, Form()], file: Uploa
             zip_ref.extractall(DATA_PATH)
 
         job_service.finish_job(id)
-        logging.info(f'{job.user.name}@{job.user.ip} send {number_files} datasets from {job.start} to {job.end} ({((number_files-1)/(job.end-job.start)*100):.2f}%)')
+        logging.info(f'{job.user.name}@{job.user.ip} send {number_files} datasets from {job.start} to {job.end} ({((number_files-1)/(job.end-job.start)*100):.2f}%) in {(time.time() - job.created):.1f}s ({(float(BATCH_SIZE)/(time.time() - job.created)):.1f}A/s)')
         return {"message": "Files uploaded and extracted successfully"}
     else:
         raise HTTPException(status_code=403, detail="Not allowed")

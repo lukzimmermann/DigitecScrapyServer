@@ -136,6 +136,8 @@ class JobService():
     def pack_baseline(self, baseline_path: str, baseline_zip_path: str, zip_size: int = 100000):
         logging.info("---- Start pack-baseline service ----")
         start_time = time.time()
+        if not os.path.exists(baseline_path):
+            os.mkdir(baseline_path)
         if len(os.listdir(baseline_path)) > zip_size:
             zip_files = []
             files = []
