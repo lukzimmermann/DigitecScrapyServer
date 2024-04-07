@@ -9,9 +9,11 @@ server = 'http://127.0.0.1:8000'
 print("----- Get batch ----")
 url = f"{server}/jobs/get_batch/"
 
-data = {"token":"3f284c4c087b0ee881642142009da4834a693c12c65a4bb5952d3fde3d5842be"}
+data = {"token":"3f284c4c087b0ee881642142009da4834a693c12c65a4bb5952d3fde3d5842be",
+        "ip":"10.0.0.0"
+        }
 
-response = requests.get(url, data=json.dumps(data))
+response = requests.post(url, data=json.dumps(data))
 print(response.json())
 
 time.sleep(60)
