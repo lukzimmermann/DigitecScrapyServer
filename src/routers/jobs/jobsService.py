@@ -51,7 +51,7 @@ class JobService():
         self.run_cleanup = True
         self.users: list[JobUser] = self.__read_users()
         asyncio.create_task(self.__clean_up_joblist())
-        asyncio.create_task(self.start_pack_baseline())
+        #asyncio.create_task(self.start_pack_baseline())
 
     def get_job_by_id(self, id: str) -> JobState:
         for job in self.jobs:
