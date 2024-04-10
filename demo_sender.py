@@ -10,13 +10,15 @@ print("----- Get batch ----")
 url = f"{server}/jobs/get_batch/"
 
 data = {"token":"3f284c4c087b0ee881642142009da4834a693c12c65a4bb5952d3fde3d5842be",
-        "ip":"10.0.0.0"
+        "ip":"10.0.0.0",
+        "display_name": "zimmi"
         }
 
 response = requests.post(url, data=json.dumps(data))
 print(response.json())
+id = response.json()['id']
 
-time.sleep(60)
+time.sleep(30)
 
 print("----- Send batch ----")
 url = f"{server}/jobs/upload_batch/"

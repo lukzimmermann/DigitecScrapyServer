@@ -1,11 +1,15 @@
 import os
 import time
-import uuid
+import datetime
 import logging
 import asyncio
 import zipfile
 import threading
 from dotenv import load_dotenv
+from fastapi import HTTPException
+from src.model.jobModel import JobUser, Job, BaseLineJob
+from src.model.jobDto import BatchRequestDto, BatchDto
+from src.utils.logger import logger
 
 load_dotenv()
 
@@ -18,68 +22,55 @@ BATCH_SIZE = int(os.getenv("BATCH_SIZE"))
 BASELINE_PATH = str(os.getenv("BASELINE_PATH"))
 BASELINE_ZIP_PATH = str(os.getenv("BASELINE_ZIP_PATH"))
 
-logging.basicConfig(filename=f'{CONFIG_PATH}/logs', level=logging.INFO, 
-                    format='%(asctime)s - %(levelname)s - %(message)s')
 
-class JobState():
-    def __init__(self, start: int, end: int) -> None:
-        self.id: str = str(uuid.uuid4())
-        self.created: float = time.time()
-        self.start: int = start
-        self.end: int = end
-        self.interval = SCRAP_INTERVAL
-        self.is_running: bool = False
-        self.user: JobUser = None
-
-    def __repr__(self) -> str:
-        if self.is_running: state = "IsRunning"
-        else: state = "Finished"
-        return f'{self.start:>9} -> {self.end:>9}, {state}'
-
-class JobUser():
-    def __init__(self, name: str, token: str) -> None:
-        self.name = name
-        self.token = token
-        self.ip = ''
-    
-    def __repr__(self) -> str:
-        return f'{self.name}@{self.ip}: {self.token}'
 
 class JobService():
     def __init__(self) -> None:
-        self.jobs: list[JobState] = self.__read_state_file()
+        self.baseline_jobs: list[BaseLineJob] = self.__read_state_file()
         self.run_cleanup = True
         self.users: list[JobUser] = self.__read_users()
         asyncio.create_task(self.__clean_up_joblist())
         #asyncio.create_task(self.start_pack_baseline())
 
-    def get_job_by_id(self, id: str) -> JobState:
-        for job in self.jobs:
+    def get_job_by_id(self, id: str) -> Job:
+        for job in self.baseline_jobs:
             if job.id == id:
                 return job
         return None
 
-    def get_new_job(self, user: str, batch_size: int=BATCH_SIZE) -> JobState:
-        self.jobs: list[JobState] = self.__read_state_file()
-        for i, _ in enumerate(self.jobs):
-            if i > 0:
-                if self.jobs[i].start - self.jobs[i-1].end > 1:
-                    if self.jobs[i].start-1 - self.jobs[i-1].end+1 > batch_size:
-                        new_job = JobState(self.jobs[i-1].end+1, self.jobs[i-1].end+batch_size)
-                    else:
-                        new_job = JobState(self.jobs[i-1].end+1, self.jobs[i].start-1)
-                    new_job.is_running = True
-                    new_job.user = user
-                    self.jobs.append(new_job)
-                    self.jobs = sorted(self.jobs, key=lambda x: x.start)
-                    return new_job
-                
-        new_job = JobState(self.jobs[-1].end+1, self.jobs[-1].end+batch_size)
-        new_job.is_running = True
-        new_job.user = user
-        self.jobs.append(new_job)
-        self.jobs = sorted(self.jobs, key=lambda x: x.start)
-        return new_job
+    def get_new_baseline_job(self, batch_request_data: BatchRequestDto) -> Job:
+        self.__validate_batch_request(batch_request_data)
+        user: JobUser = self.get_user_by_token(batch_request_data.token)
+        user.ip = batch_request_data.ip
+        user.display_name = batch_request_data.display_name
+
+        self.baseline_jobs: list[BaseLineJob] = self.__read_state_file()
+        self.baseline_jobs[0]
+        start = self.baseline_jobs[-1].end+1
+        end = self.baseline_jobs[-1].end+BATCH_SIZE
+        job: BaseLineJob = None
+
+        for i, _ in enumerate(self.baseline_jobs):
+            if i > 0 and self.baseline_jobs[i].start - self.baseline_jobs[i-1].end > 1:
+                start = self.baseline_jobs[i-1].end+1
+                end = self.baseline_jobs[i].start-1
+                if self.baseline_jobs[i].start-1 - self.baseline_jobs[i-1].end+1 > BATCH_SIZE:
+                    end = self.baseline_jobs[i-1].end+BATCH_SIZE
+                job = self.__create_new_baseline_job(user, start, end)
+        
+        job = self.__create_new_baseline_job(user, start, end)
+        
+        formatted_time = datetime.datetime.fromtimestamp(job.created).strftime('%Y-%m-%d %H:%M:%S')
+        logging.debug(f'{user.display_name}@{user.ip} get a new batch from {job.start} to {job.end}')
+
+        batch = BatchDto(id = job.id, 
+                         number_list = job.number_list,
+                         interval = SCRAP_INTERVAL,
+                         created = formatted_time,
+                         user_name = user.display_name)
+        
+        return batch
+
 
     def get_user_by_token(self, token: str):
         for user in self.users:
@@ -88,19 +79,19 @@ class JobService():
         return None
     
     def is_ip_address_present(self, ip: str):
-        for job in self.jobs:
+        for job in self.baseline_jobs:
             if job.is_running and job.user.ip == ip:
                 return True
         return False
 
     def is_job_active(self, id: str) -> bool:
-        for job in self.jobs:
+        for job in self.baseline_jobs:
             if job.id.strip() == id.strip():
                 return True
         return False
 
     def finish_job(self, id: str) -> None:
-        for job in self.jobs:
+        for job in self.baseline_jobs:
             if job.id.strip() == id.strip():
                 job.is_running = False
                 self.__save_job_list()
@@ -108,19 +99,33 @@ class JobService():
 
     def stop(self):
         self.run_cleanup = False
+
+    def __create_new_baseline_job(self, user: JobUser, start: int, end: int) -> BaseLineJob:
+        new_job = BaseLineJob(user, start, end)
+        self.baseline_jobs.append(new_job)
+        self.baseline_jobs = sorted(self.baseline_jobs, key=lambda x: x.start)
+        return new_job
+    
+    def __validate_batch_request(self, batch_request_data: BatchRequestDto):
+        if self.get_user_by_token(batch_request_data.token) is None:
+            logging.error(f'Unauthorized batch request from {batch_request_data.display_name}')
+            raise HTTPException(status_code=401, detail="No valid token")
+        if self.is_ip_address_present(batch_request_data.ip):
+            logging.error(f'Request from user {batch_request_data.display_name} although there is still an open job under this ip')
+            raise HTTPException(status_code=403, detail="IP address registered for another job, please wait...")
     
     async def __clean_up_joblist(self) -> None:
         while self.run_cleanup:
-            new_joblist: list[JobState] = []
-            for job in self.jobs:
+            new_joblist: list[Job] = []
+            for job in self.baseline_jobs:
                 if not job.is_running:
                     new_joblist.append(job)
-            self.jobs = new_joblist
+            self.baseline_jobs = new_joblist
             await asyncio.sleep(CLEAN_JOB_INTERVAL)
         
     def __save_job_list(self) -> None:
         string_list = []
-        for job in self.jobs:
+        for job in self.baseline_jobs:
             if not job.is_running:
                 string_list.append(f'{job.start} - {job.end}\n')
 
@@ -167,8 +172,8 @@ class JobService():
             logging.info(f"pack-baseline service: nothing to pack after {(time.time()-start_time):.1f}s")
         
             
-    def __read_state_file(self) -> list[JobState]:
-        jobs: list[JobState] = []
+    def __read_state_file(self) -> list[BaseLineJob]:
+        jobs: list[BaseLineJob] = []
 
         with open(f"{CONFIG_PATH}/job_state", "r") as file:
             data = file.readlines()
@@ -176,7 +181,9 @@ class JobService():
                 values = line.split('-')
                 start = int(values[0].strip())
                 end = int(values[1].strip())
-                jobs.append(JobState(start, end))
+                job = BaseLineJob(None, start, end)
+                job.is_running = False
+                jobs.append(job)
         return jobs
     
     def __read_users(self):
