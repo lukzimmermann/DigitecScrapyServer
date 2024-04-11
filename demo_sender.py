@@ -21,7 +21,7 @@ id = response.json()['id']
 time.sleep(30)
 
 print("----- Send batch ----")
-url = f"{server}/jobs/upload_batch/"
+url = f"{server}/job/upload_batch/"
 
 data = {"id": id}
 files = {'file': open('Archiv.zip', 'rb')}

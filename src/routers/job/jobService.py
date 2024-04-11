@@ -1,15 +1,13 @@
-import os
-import time
-import datetime
-import logging
+import os, time, datetime, logging
 import asyncio
 import zipfile
 import threading
 from dotenv import load_dotenv
 from fastapi import HTTPException
-from src.model.jobModel import JobUser, Job, BaseLineJob
+from src.model.jobModel import User, Job, BaseLineJob
 from src.model.jobDto import BatchRequestDto, BatchDto
 from src.utils.logger import logger
+from src.utils.user_handler import UserHandler
 
 load_dotenv()
 
@@ -26,9 +24,11 @@ BASELINE_ZIP_PATH = str(os.getenv("BASELINE_ZIP_PATH"))
 
 class JobService():
     def __init__(self) -> None:
+        self.user_handler = UserHandler()
+
         self.baseline_jobs: list[BaseLineJob] = self.__read_state_file()
         self.run_cleanup = True
-        self.users: list[JobUser] = self.__read_users()
+        self.users: list[User] = self.user_handler.get_users()
         asyncio.create_task(self.__clean_up_joblist())
         #asyncio.create_task(self.start_pack_baseline())
 
@@ -40,7 +40,7 @@ class JobService():
 
     def get_new_baseline_job(self, batch_request_data: BatchRequestDto) -> Job:
         self.__validate_batch_request(batch_request_data)
-        user: JobUser = self.get_user_by_token(batch_request_data.token)
+        user: User = self.user_handler.get_user_by_token(batch_request_data.token)
         user.ip = batch_request_data.ip
         user.display_name = batch_request_data.display_name
 
@@ -71,13 +71,6 @@ class JobService():
         
         return batch
 
-
-    def get_user_by_token(self, token: str):
-        for user in self.users:
-            if str(user.token) == str(token):
-                return user
-        return None
-    
     def is_ip_address_present(self, ip: str):
         for job in self.baseline_jobs:
             if job.is_running and job.user.ip == ip:
@@ -100,20 +93,20 @@ class JobService():
     def stop(self):
         self.run_cleanup = False
 
-    def __create_new_baseline_job(self, user: JobUser, start: int, end: int) -> BaseLineJob:
+    def __create_new_baseline_job(self, user: User, start: int, end: int) -> BaseLineJob:
         new_job = BaseLineJob(user, start, end)
         self.baseline_jobs.append(new_job)
         self.baseline_jobs = sorted(self.baseline_jobs, key=lambda x: x.start)
         return new_job
     
     def __validate_batch_request(self, batch_request_data: BatchRequestDto):
-        if self.get_user_by_token(batch_request_data.token) is None:
+        if self.user_handler.get_user_by_token(batch_request_data.token) is None:
             logging.error(f'Unauthorized batch request from {batch_request_data.display_name}')
-            raise HTTPException(status_code=401, detail="No valid token")
+            raise HTTPException(status_code=401, detail="Invalid token")
         if self.is_ip_address_present(batch_request_data.ip):
             logging.error(f'Request from user {batch_request_data.display_name} although there is still an open job under this ip')
             raise HTTPException(status_code=403, detail="IP address registered for another job, please wait...")
-    
+        
     async def __clean_up_joblist(self) -> None:
         while self.run_cleanup:
             new_joblist: list[Job] = []
@@ -185,14 +178,3 @@ class JobService():
                 job.is_running = False
                 jobs.append(job)
         return jobs
-    
-    def __read_users(self):
-        user_list: list[JobUser] = []
-        with open(f'{CONFIG_PATH}/users', 'r') as file:
-            lines = file.readlines()
-
-        for line in lines:
-            segment = line[0:-1].split(';')
-            user_list.append(JobUser(segment[0],  segment[1]))
-
-        return user_list

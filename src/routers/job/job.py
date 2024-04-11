@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 from typing import Annotated
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from src.routers.jobs.jobsService import JobService, JobUser
+from src.routers.job.jobService import JobService, User
 from src.model.jobDto import BatchRequestDto, BatchDto, JobStatusDto
 
 load_dotenv()
@@ -22,7 +22,7 @@ BATCH_SIZE = int(os.getenv("BATCH_SIZE"))
 logging.basicConfig(filename=f'{CONFIG_PATH}/logs', level=logging.INFO, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-router = APIRouter(prefix="/jobs", tags=["Jobs"])
+router = APIRouter(prefix="/job", tags=["Job"])
 
 job_service = JobService()
 
@@ -31,10 +31,10 @@ async def get_batch(batch_request_data: BatchRequestDto) -> BatchDto:
     return job_service.get_new_baseline_job(batch_request_data)
     
 @router.get("/status/")
-async def get_batch() -> list[JobStatusDto]:
+async def get_status() -> list[JobStatusDto]:
     status: list[JobStatusDto] = []
     for job in job_service.baseline_jobs:
-        user: JobUser = job.user
+        user: User = job.user
         if job.is_running:
             formatted_time = datetime.datetime.fromtimestamp(job.created).strftime('%Y-%m-%d %H:%M:%S')
             status.append(JobStatusDto(user_name=user.display_name, created=formatted_time, min_number=np.min(job.number_list), max_number=np.max(job.number_list), number_count=len(job.number_list)))
@@ -57,45 +57,11 @@ async def upload_batch(request: Request, id: Annotated[str, Form()], file: Uploa
             zip_ref.extractall(DATA_PATH)
 
         job_service.finish_job(id)
-        logging.info(f'{job.user.display_name}@{job.user.ip} send {number_files} datasets from {job.start} to {job.end} ({((number_files)/(job.end-job.start-1)*100):.2f}%) in {(time.time() - job.created):.1f}s ({(float(BATCH_SIZE)/(time.time() - job.created)):.1f}A/s)')
+        logging.info(f'{job.user.display_name}@{job.user.ip} send {number_files} datasets from {job.start} to {job.end} ({((number_files)/(job.end-job.start+1)*100):.1f}%) in {(time.time() - job.created):.1f}s ({(float(BATCH_SIZE)/(time.time() - job.created)):.1f}A/s)')
         return {"message": "Files uploaded and extracted successfully"}
     else:
         raise HTTPException(status_code=404, detail="No corresponding job found")
 
-@router.get("/logs/")
-async def get_logs():
-    LOG_LENGTH = 100
-
-    def get_logs() -> list[str]:
-        logs: list[str] = []
-
-        with open(CONFIG_PATH+"/logs", "r") as file:
-            data = file.readlines()
-            if len(data) > LOG_LENGTH:
-                data = data[-LOG_LENGTH:]
-
-        for element in data:
-            if "@" in element:
-                segments = element.split('@')
-                log = segments[0] + " " + " ".join(segments[1].split(' ')[1:])
-                logs.append(log)
-            else:
-                logs.append(element)
-        return logs[::-1]
-
-    def create_log_html():
-        with open('./src/html/logs.html', 'r') as file:
-            html = file.read()
-
-        logs = get_logs()
-
-        log_text = ''
-        for log in logs:
-            log_text += f'<p>{log}</p>'
-
-        html = html.replace('XXX', log_text)
-        return html
-    return HTMLResponse(content=create_log_html(), status_code=200, media_type="text/html")
 
 @router.on_event("shutdown")
 async def on_shutdown():
