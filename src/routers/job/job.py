@@ -6,9 +6,7 @@ import time
 import datetime
 import numpy as np
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse
 from typing import Annotated
-from pydantic import BaseModel
 from dotenv import load_dotenv
 from src.routers.job.jobService import JobService, User
 from src.model.jobDto import BatchRequestDto, BatchDto, JobStatusDto

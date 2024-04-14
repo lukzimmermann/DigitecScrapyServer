@@ -44,7 +44,6 @@ class JobService():
         user.ip = batch_request_data.ip
         user.display_name = batch_request_data.display_name
 
-        self.baseline_jobs: list[BaseLineJob] = self.__read_state_file()
         self.baseline_jobs[0]
         start = self.baseline_jobs[-1].end+1
         end = self.baseline_jobs[-1].end+BATCH_SIZE
