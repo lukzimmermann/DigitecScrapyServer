@@ -41,6 +41,7 @@ async def get_status() -> list[JobStatusDto]:
 @router.post("/upload_batch/")
 async def upload_batch(request: Request, id: Annotated[str, Form()], file: UploadFile = File(...)):
     if job_service.is_job_active(id):
+        job_service.finish_job(id)
         file_content = await file.read()
         file_content_io = io.BytesIO(file_content)
 
@@ -54,7 +55,6 @@ async def upload_batch(request: Request, id: Annotated[str, Form()], file: Uploa
             number_files = len(file_names)
             zip_ref.extractall(DATA_PATH)
 
-        job_service.finish_job(id)
         logging.info(f'{job.user.display_name}@{job.user.ip} send {number_files} datasets from {job.start} to {job.end} ({((number_files)/(job.end-job.start+1)*100):.1f}%) in {(time.time() - job.created):.1f}s ({(float(BATCH_SIZE)/(time.time() - job.created)):.1f}A/s)')
         return {"message": "Files uploaded and extracted successfully"}
     else:
